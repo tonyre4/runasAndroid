@@ -16,6 +16,7 @@
 
 package com.example.android.camera2basic;
 
+import com.harrysoft.androidbluetoothserial.BluetoothManager;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -24,6 +25,8 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
 import android.graphics.Matrix;
 import android.graphics.Point;
@@ -42,6 +45,7 @@ import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.support.annotation.NonNull;
@@ -49,6 +53,7 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.DialogFragment;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.ContextCompat;
+import android.util.Base64;
 import android.util.Log;
 import android.util.Size;
 import android.util.SparseIntArray;
@@ -59,6 +64,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Toast;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -73,6 +79,18 @@ import java.util.concurrent.TimeUnit;
 
 public class Camera2BasicFragment extends Fragment
         implements View.OnClickListener, ActivityCompat.OnRequestPermissionsResultCallback {
+
+    /////////////////////////
+    //Esto empieza a ser mio
+    /////////////////////////
+
+    private String phPath = "";
+    private Bitmap ph;
+    private String b64;
+    private final String mac = "20:47:DA:8A:D7:B9";
+
+    /////////////////////////
+    /////////////////////////
 
     /**
      * Conversion from screen rotation to JPEG orientation.
@@ -809,6 +827,7 @@ public class Camera2BasicFragment extends Fragment
      * {@link #mCaptureCallback} from both {@link #lockFocus()}.
      */
     private void captureStillPicture() {
+        boolean take = false;
         try {
             final Activity activity = getActivity();
             if (null == activity || null == mCameraDevice) {
@@ -841,13 +860,46 @@ public class Camera2BasicFragment extends Fragment
                 }
             };
 
+            phPath = mFile.toString();
+            take = true;
+
+
             mCaptureSession.stopRepeating();
             mCaptureSession.abortCaptures();
             mCaptureSession.capture(captureBuilder.build(), CaptureCallback, null);
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
+
+        if (take) {
+            System.out.println("////TONY////\tPath: " + phPath + "\n//////////////");
+            runas();
+        }
     }
+
+    //////
+    //TONY
+    private void runas() {
+        loadbmp(phPath);
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        ph.compress(Bitmap.CompressFormat.PNG, 100, stream);
+        byte[] data = stream.toByteArray();
+        b64 = Base64.encodeToString(data, Base64.DEFAULT);
+        ph.recycle();
+        System.out.println("////TONY////\tBase64:" + b64 + "\n//////////////");
+        ph = null;
+    }
+
+    private void loadbmp(String path){
+        File image = new File(path);
+        BitmapFactory.Options bmOptions = new BitmapFactory.Options();
+        ph = BitmapFactory.decodeFile(image.getAbsolutePath(),bmOptions);
+        System.out.println("////TONY////\tLoaded!\n//////////////");
+    }
+
+    ///////////////
+    ///////////////
+    ///////////////
 
     /**
      * Retrieves the JPEG orientation from the specified screen rotation.
