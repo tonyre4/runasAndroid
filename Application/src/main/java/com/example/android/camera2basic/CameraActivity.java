@@ -24,7 +24,6 @@ import android.support.v7.app.AppCompatActivity;
 
 public class CameraActivity extends AppCompatActivity {
 
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -35,12 +34,5 @@ public class CameraActivity extends AppCompatActivity {
                     .commit();
         }
     }
-
-//    private void connectDevice(String mac) {
-//        bluetoothManager.openSerialDevice(mac)
-//                .subscribeOn(Schedulers.io())
-//                .observeOn(AndroidSchedulers.mainThread())
-//                .subscribe(this::onConnected, this::onError);
-//    }
 
 }

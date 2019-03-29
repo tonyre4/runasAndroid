@@ -61,12 +61,19 @@ import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
 import android.widget.Toast;
 
+import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.net.InetAddress;
+import java.net.Socket;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -86,8 +93,11 @@ public class Camera2BasicFragment extends Fragment
     private String phPath = "";
     private Bitmap ph;
     private String b64;
-    private final String mac = "20:47:DA:8A:D7:B9";
 
+    private Socket socket;
+
+    private static final int SERVERPORT = 5000;
+    private static final String SERVER_IP = "192.168.0.182";
     /////////////////////////
     /////////////////////////
 
@@ -438,7 +448,29 @@ public class Camera2BasicFragment extends Fragment
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
+        //Thread para el socket
+        new Thread(new ClientThread()).start();
         return inflater.inflate(R.layout.fragment_camera2_basic, container, false);
+    }
+
+    class ClientThread implements Runnable {
+
+        @Override
+        public void run() {
+
+            try {
+                InetAddress serverAddr = InetAddress.getByName(SERVER_IP);
+
+                socket = new Socket(serverAddr, SERVERPORT);
+
+            } catch (UnknownHostException e1) {
+                e1.printStackTrace();
+            } catch (IOException e1) {
+                e1.printStackTrace();
+            }
+
+        }
+
     }
 
     @Override
@@ -871,7 +903,7 @@ public class Camera2BasicFragment extends Fragment
         }
 
         if (take) {
-            System.out.println("////TONY////\tPath: " + phPath + "\n//////////////");
+            //System.out.println("////TONY////\tPath: " + phPath + "\n//////////////");
             runas();
         }
     }
@@ -885,15 +917,49 @@ public class Camera2BasicFragment extends Fragment
         byte[] data = stream.toByteArray();
         b64 = Base64.encodeToString(data, Base64.DEFAULT);
         ph.recycle();
-        System.out.println("////TONY////\tBase64:" + b64 + "\n//////////////");
+
+        //Para checar el Base64
+        //System.out.println("////TONY////\tBase64:" + b64 + "\n//////////////");
+        //System.out.println("TONNY");
+
+
+        //Manda la imagen en base64
+        for (int i = 0; i<b64.length()/4096;i++){
+            int end = 4096*(i+1);
+            if (end>b64.length()){
+                end = b64.length();
+            }
+            sendData(b64.substring(4096*i, end));
+        }
+        //sendData(b64);
+        System.out.println("TOPO length " + b64.length());
+        sendData("=OK");
+
+        //Borra la foto de la RAM
         ph = null;
+        b64 = "";
     }
 
     private void loadbmp(String path){
         File image = new File(path);
         BitmapFactory.Options bmOptions = new BitmapFactory.Options();
         ph = BitmapFactory.decodeFile(image.getAbsolutePath(),bmOptions);
-        System.out.println("////TONY////\tLoaded!\n//////////////");
+        //System.out.println("////TONY////\tLoaded!\n//////////////");
+    }
+
+    private void sendData(String data){
+        try {
+            PrintWriter out = new PrintWriter(new BufferedWriter(
+                    new OutputStreamWriter(socket.getOutputStream())),
+                    true);
+            out.println(data);
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     ///////////////
@@ -1085,3 +1151,4 @@ public class Camera2BasicFragment extends Fragment
     }
 
 }
+
