@@ -923,15 +923,28 @@ public class Camera2BasicFragment extends Fragment
         //System.out.println("TONNY");
 
 
-        //Manda la imagen en base64
-        for (int i = 0; i<b64.length()/4096;i++){
-            int end = 4096*(i+1);
-            if (end>b64.length()){
-                end = b64.length();
-            }
-            sendData(b64.substring(4096*i, end));
-        }
-        //sendData(b64);
+
+//        int send = 0;
+//        final int pack = 4095;
+//        int ini = 0;
+//        int end = pack;
+//        int times = 0;
+//        boolean br = true;
+//        //Manda la imagen en base64
+//        while(br){
+//            if (end>b64.length()){
+//                end = b64.length();
+//                br = false;
+//            }
+//            send += end-ini;
+//            sendData(b64.substring(ini, end));
+//            ini += pack;
+//            end += pack;
+//            times += 1;
+//        }
+
+        sendData(b64);
+        //System.out.println("TOPO length " + b64.length() + " L2: " + send + "Packets: " + times);
         System.out.println("TOPO length " + b64.length());
         sendData("=OK");
 
