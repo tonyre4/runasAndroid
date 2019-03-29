@@ -16,7 +16,6 @@
 
 package com.example.android.camera2basic;
 
-import com.harrysoft.androidbluetoothserial.BluetoothManager;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
