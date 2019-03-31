@@ -26,6 +26,7 @@ import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.BitmapRegionDecoder;
 import android.graphics.ImageFormat;
 import android.graphics.Matrix;
 import android.graphics.Point;
@@ -43,6 +44,7 @@ import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -64,11 +66,14 @@ import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.Toast;
 
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.InetAddress;
@@ -80,8 +85,14 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Executor;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+
+import static java.lang.System.in;
 
 public class Camera2BasicFragment extends Fragment
         implements View.OnClickListener, ActivityCompat.OnRequestPermissionsResultCallback {
@@ -93,6 +104,14 @@ public class Camera2BasicFragment extends Fragment
     private String phPath = "";
     private Bitmap ph;
     private String b64;
+
+    BlockingQueue<Runnable> workQueue;
+    Executor threadPoolExecutor;
+
+    private ClienteSend Cs;
+    private ClienteRead Cr;
+
+    private boolean busy = false;
 
     private Socket socket;
 
@@ -449,11 +468,148 @@ public class Camera2BasicFragment extends Fragment
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         //Thread para el socket
+        //Cs = new ClienteSend();
+        //Cr = new ClienteRead();
+        int corePoolSize = 60;
+        int maximumPoolSize = 80;
+        int keepAliveTime = 10;
+
+        workQueue = new LinkedBlockingQueue<Runnable>(maximumPoolSize);
+        threadPoolExecutor = new ThreadPoolExecutor(corePoolSize, maximumPoolSize, keepAliveTime, TimeUnit.SECONDS, workQueue);
+
         new Thread(new ClientThread()).start();
+        //setConnection();
+        //new ClienteRead().execute();
+        new ClienteRead().executeOnExecutor(threadPoolExecutor);
+        //Cr.execute();
         return inflater.inflate(R.layout.fragment_camera2_basic, container, false);
     }
 
-    class ClientThread implements Runnable {
+    private void setConnection(){
+        //Esto es para conectar el cliente
+        try {
+            InetAddress serverAddr = InetAddress.getByName(SERVER_IP);
+            socket = new Socket(serverAddr, SERVERPORT);
+        } catch (UnknownHostException e1) {
+            e1.printStackTrace();
+        } catch (IOException e1) {
+            e1.printStackTrace();
+        }
+    }
+
+
+    private class ClienteSend extends AsyncTask<Void, Void, Void> {
+
+        @Override
+        protected Void doInBackground(Void... params) {
+            //Esto se va a hacer despues del pre
+            //Aqui no puedes llamar variables de otro lado
+                while(!mFile.exists()) {
+                }
+                runas();
+                return null;
+        }
+
+        @Override
+        protected void onProgressUpdate(Void... values) {
+            //Aqui actualizas los datos que quieras de la clase principal
+        }
+
+        @Override
+        protected void onPreExecute() {
+            //Antes de iniciar ejecuta este pedo
+            if(mFile.exists()) {
+                mFile.delete();
+            }
+            busy = true;
+        }
+
+        @Override
+        protected void onPostExecute(Void params) {
+            //Despues de que termine do in background ejecuta esta madre
+            showToast("Photo sent!");
+            //new ClienteSendnew ClienteSend();
+            busy = false;
+        }
+
+        @Override
+        protected void onCancelled() {
+            //Si se cancela el thread ejecuta este pedo
+
+        }
+    }
+
+    private class ClienteRead extends AsyncTask<Void, Void, String> {
+
+        @Override
+        protected String doInBackground(Void... params) {
+            String message = "";
+
+            //Esperando a que se declare el socket
+            while(socket==null);
+
+            //No se si en realidad esto sirva
+            while(socket.isClosed()){}
+
+            //Variables para leer la entrada
+            int charsRead = 0;
+            byte[] buffer = new byte[2048];
+            InputStream in = null;
+
+            //Para obtener el inputstream
+            try{
+                while (in==null){
+                    in = socket.getInputStream();
+                }
+            } catch (IOException e1) {
+                e1.printStackTrace();
+            }
+
+            while(message.equals("")) {
+                try {
+
+                    //Con este bucle lee, pero tiene que tener al final un salto de linea para que se pueda salir y mostrar el toast
+                    while ((charsRead = in.read(buffer)) != -1) {
+                        message += new String(buffer).substring(0, charsRead);
+                        if (message.endsWith("\n"))
+                            break;
+                    }
+
+                } catch (IOException e1) {
+                    e1.printStackTrace();
+                }
+            }
+            return message;
+        }
+
+        @Override
+        protected void onProgressUpdate(Void... values) {
+            //Aqui actualizas los datos que quieras de la clase principal
+        }
+
+        @Override
+        protected void onPreExecute() {
+            //Antes de iniciar ejecuta este pedo
+
+        }
+
+        @Override
+        protected void onPostExecute(String params) {
+            //Despues de que termine do in background ejecuta esta madre
+            params = "There says: " + params;
+            showToast(params);
+            new ClienteRead().executeOnExecutor(threadPoolExecutor);
+        }
+
+        @Override
+        protected void onCancelled() {
+            //Si se cancela el thread ejecuta este pedo
+
+        }
+    }
+
+
+        class ClientThread implements Runnable {
 
         @Override
         public void run() {
@@ -470,7 +626,6 @@ public class Camera2BasicFragment extends Fragment
             }
 
         }
-
     }
 
     @Override
@@ -885,7 +1040,7 @@ public class Camera2BasicFragment extends Fragment
                 public void onCaptureCompleted(@NonNull CameraCaptureSession session,
                                                @NonNull CaptureRequest request,
                                                @NonNull TotalCaptureResult result) {
-                    showToast("Saved: " + mFile);
+                    showToast("Photo saved succesfully!");
                     Log.d(TAG, mFile.toString());
                     unlockFocus();
                 }
@@ -894,7 +1049,6 @@ public class Camera2BasicFragment extends Fragment
             phPath = mFile.toString();
             take = true;
 
-
             mCaptureSession.stopRepeating();
             mCaptureSession.abortCaptures();
             mCaptureSession.capture(captureBuilder.build(), CaptureCallback, null);
@@ -902,26 +1056,34 @@ public class Camera2BasicFragment extends Fragment
             e.printStackTrace();
         }
 
-        if (take) {
+        //if (take) {
             //System.out.println("////TONY////\tPath: " + phPath + "\n//////////////");
-            runas();
-        }
+//            Handler handler = new Handler();
+//            handler.postDelayed(new Runnable() {
+//                public void run() {
+//                    runas();
+//                }
+//            }, 500);   //5 seconds
+            //runas();
+        //}
     }
 
     //////
     //TONY
     private void runas() {
+        phPath = mFile.toString();
+        showToast("Loading photo...");
         loadbmp(phPath);
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
         ph.compress(Bitmap.CompressFormat.PNG, 100, stream);
         byte[] data = stream.toByteArray();
+        showToast("Encoding");
         b64 = Base64.encodeToString(data, Base64.DEFAULT);
         ph.recycle();
 
         //Para checar el Base64
         //System.out.println("////TONY////\tBase64:" + b64 + "\n//////////////");
         //System.out.println("TONNY");
-
 
 
 //        int send = 0;
@@ -943,22 +1105,35 @@ public class Camera2BasicFragment extends Fragment
 //            times += 1;
 //        }
 
+        showToast("Sending data...");
         sendData(b64);
         //System.out.println("TOPO length " + b64.length() + " L2: " + send + "Packets: " + times);
         System.out.println("TOPO length " + b64.length());
         sendData("=OK");
 
         //Borra la foto de la RAM
-        ph = null;
-        b64 = "";
+        //ph = null;
+        //b64 = "";
     }
 
     private void loadbmp(String path){
         File image = new File(path);
         BitmapFactory.Options bmOptions = new BitmapFactory.Options();
         ph = BitmapFactory.decodeFile(image.getAbsolutePath(),bmOptions);
+        double ratio = 0.5;
+        Bitmap ph2;
+        try {
+            ph2 = Bitmap.createScaledBitmap(ph, (int) (ph.getWidth() * ratio), (int) (ph.getHeight() * ratio), true);
+            ph = ph2;
+        }
+        catch (NullPointerException e){
+            e.printStackTrace();
+            showToast("Something was wrong with resizing image\nFull image will be sent. Please wait.");
+            System.out.println("TOPOc: Using full size image");
+        }
         //System.out.println("////TONY////\tLoaded!\n//////////////");
     }
+
 
     private void sendData(String data){
         try {
@@ -1018,17 +1193,21 @@ public class Camera2BasicFragment extends Fragment
     public void onClick(View view) {
         switch (view.getId()) {
             case R.id.picture: {
-                takePicture();
+                if(!busy) {
+                    new ClienteSend().executeOnExecutor(threadPoolExecutor);
+                    takePicture();
+                }
                 break;
             }
             case R.id.info: {
-                Activity activity = getActivity();
-                if (null != activity) {
-                    new AlertDialog.Builder(activity)
-                            .setMessage(R.string.intro_message)
-                            .setPositiveButton(android.R.string.ok, null)
-                            .show();
-                }
+//                Activity activity = getActivity();
+//                if (null != activity) {
+//                    new AlertDialog.Builder(activity)
+//                            .setMessage(R.string.intro_message)
+//                            .setPositiveButton(android.R.string.ok, null)
+//                            .show();
+//                }
+                //runas();
                 break;
             }
         }
