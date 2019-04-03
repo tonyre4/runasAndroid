@@ -110,13 +110,17 @@ public class Camera2BasicFragment extends Fragment
 
     private ClienteSend Cs;
     private ClienteRead Cr;
+    private ClienteSocket CSS;
 
     private boolean busy = false;
 
     private Socket socket;
 
+    private EditText IP;
+    private boolean Cscancel, Crcancel = false;
+
     private static final int SERVERPORT = 5000;
-    private static final String SERVER_IP = "192.168.0.182";
+    private static  String SERVER_IP = "192.168.0.182";
     /////////////////////////
     /////////////////////////
 
@@ -477,7 +481,9 @@ public class Camera2BasicFragment extends Fragment
         workQueue = new LinkedBlockingQueue<Runnable>(maximumPoolSize);
         threadPoolExecutor = new ThreadPoolExecutor(corePoolSize, maximumPoolSize, keepAliveTime, TimeUnit.SECONDS, workQueue);
 
-        new Thread(new ClientThread()).start();
+        //new Thread(new ClientThread()).start();
+        CSS = new ClienteSocket();
+        CSS.executeOnExecutor(threadPoolExecutor);
         //setConnection();
         //new ClienteRead().execute();
         new ClienteRead().executeOnExecutor(threadPoolExecutor);
@@ -497,6 +503,53 @@ public class Camera2BasicFragment extends Fragment
         }
     }
 
+    private class ClienteSocket extends AsyncTask<Void, Void, Void> {
+
+        @Override
+        protected Void doInBackground(Void... params) {
+            try {
+                InetAddress serverAddr = InetAddress.getByName(SERVER_IP);
+                System.out.println("TOPOc: pasa aqui...");
+                showToast("IP connected: " + SERVER_IP);
+                socket = new Socket(serverAddr, SERVERPORT);
+
+                //Cscancel = false;
+                //Crcancel = false;
+                //System.out.println("TOPOc: pasa aqui...");
+
+            } catch (UnknownHostException e1) {
+                e1.printStackTrace();
+            } catch (IOException e1) {
+                e1.printStackTrace();
+            }
+        return null;
+        }
+
+        @Override
+        protected void onProgressUpdate(Void... values) {
+            //Aqui actualizas los datos que quieras de la clase principal
+        }
+
+        @Override
+        protected void onPreExecute() {
+            //Antes de iniciar ejecuta este pedo
+        }
+
+        @Override
+        protected void onPostExecute(Void params) {
+            //Despues de que termine do in background ejecuta esta madre
+        }
+
+        @Override
+        protected void onCancelled() {
+            //Si se cancela el thread ejecuta este pedo
+            System.out.println("TOPOc: pasa aqui222...");
+            CSS = null;
+            CSS = new ClienteSocket();
+            CSS.executeOnExecutor(threadPoolExecutor);
+        }
+    }
+
 
     private class ClienteSend extends AsyncTask<Void, Void, Void> {
 
@@ -504,6 +557,9 @@ public class Camera2BasicFragment extends Fragment
         protected Void doInBackground(Void... params) {
             //Esto se va a hacer despues del pre
             //Aqui no puedes llamar variables de otro lado
+                if (Cscancel){
+                    this.cancel(true);
+                }
                 while(!mFile.exists()) {
                 }
                 runas();
@@ -535,7 +591,9 @@ public class Camera2BasicFragment extends Fragment
         @Override
         protected void onCancelled() {
             //Si se cancela el thread ejecuta este pedo
-
+            while (Cscancel){
+                new ClienteRead().executeOnExecutor(threadPoolExecutor);
+            }
         }
     }
 
@@ -555,6 +613,10 @@ public class Camera2BasicFragment extends Fragment
             int charsRead = 0;
             byte[] buffer = new byte[2048];
             InputStream in = null;
+
+            if (Crcancel){
+                this.cancel(true);
+            }
 
             //Para obtener el inputstream
             try{
@@ -604,7 +666,9 @@ public class Camera2BasicFragment extends Fragment
         @Override
         protected void onCancelled() {
             //Si se cancela el thread ejecuta este pedo
-
+            while (Crcancel){
+                new ClienteSend().executeOnExecutor(threadPoolExecutor);
+            }
         }
     }
 
@@ -632,6 +696,7 @@ public class Camera2BasicFragment extends Fragment
     public void onViewCreated(final View view, Bundle savedInstanceState) {
         view.findViewById(R.id.picture).setOnClickListener(this);
         view.findViewById(R.id.info).setOnClickListener(this);
+        IP = view.findViewById(R.id.IP);
         mTextureView = (AutoFitTextureView) view.findViewById(R.id.texture);
     }
 
@@ -1040,7 +1105,7 @@ public class Camera2BasicFragment extends Fragment
                 public void onCaptureCompleted(@NonNull CameraCaptureSession session,
                                                @NonNull CaptureRequest request,
                                                @NonNull TotalCaptureResult result) {
-                    showToast("Photo saved succesfully!");
+                    showToast("Photo saved succesfully!\n" + mFile.toString());
                     Log.d(TAG, mFile.toString());
                     unlockFocus();
                 }
@@ -1200,6 +1265,22 @@ public class Camera2BasicFragment extends Fragment
                 break;
             }
             case R.id.info: {
+                if(!busy) {
+                  SERVER_IP = IP.getText().toString();
+                  CSS.cancel(true);
+                    try {
+                        socket.close();
+                    } catch (UnknownHostException e) {
+                        e.printStackTrace();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                  CSS = new ClienteSocket();
+                  CSS.executeOnExecutor(threadPoolExecutor);
+                  //Crcancel = true;
+                  //Cscancel = true;
 //                Activity activity = getActivity();
 //                if (null != activity) {
 //                    new AlertDialog.Builder(activity)
@@ -1208,6 +1289,7 @@ public class Camera2BasicFragment extends Fragment
 //                            .show();
 //                }
                 //runas();
+                }
                 break;
             }
         }
